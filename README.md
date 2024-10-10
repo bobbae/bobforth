@@ -1,5 +1,6 @@
 # bobforth
-a basic forth interpreter in go
+
+a basic [FORTH](https://colorforth.github.io/HOPL.html) interpreter in go
 
 ```
 : square dup * ;
