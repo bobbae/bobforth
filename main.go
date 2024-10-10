@@ -8,8 +8,11 @@ import (
 
 // ForthInterpreter holds the stack and dictionary of words
 type ForthInterpreter struct {
-	stack []int
-	words map[string]func(*ForthInterpreter)
+	stack   []int
+	words   map[string]func(*ForthInterpreter)
+	defMode bool          // Indicates if we're defining a new word
+	newWord string        // Holds the name of the new word being defined
+	wordDef []string      // Holds the commands for the new word definition
 }
 
 // NewForthInterpreter creates a new Forth interpreter
@@ -62,18 +65,56 @@ func (f *ForthInterpreter) defineBasicWords() {
 		f.push(b)
 		f.push(a)
 	}
+
+	// Word definition (start with ":")
+	f.words[":"] = func(f *ForthInterpreter) {
+		f.defMode = true
+	}
 }
 
 // Execute parses and executes a Forth input string
 func (f *ForthInterpreter) Execute(input string) {
 	tokens := strings.Fields(input)
 	for _, token := range tokens {
-		if word, exists := f.words[token]; exists {
-			word(f) // Execute Forth word
-		} else if number, err := strconv.Atoi(token); err == nil {
-			f.push(number) // Push number onto the stack
+		// If we are in definition mode, handle the word creation
+		if f.defMode {
+			if token == ";" {
+				// End of word definition
+				f.defMode = false
+				f.addNewWord(f.newWord, f.wordDef)
+				f.newWord = ""
+				f.wordDef = []string{}
+			} else if f.newWord == "" {
+				// First token after ":" is the new word name
+				f.newWord = token
+			} else {
+				// Subsequent tokens are part of the word definition
+				f.wordDef = append(f.wordDef, token)
+			}
 		} else {
-			fmt.Println("Unknown word:", token)
+			// Normal execution
+			if word, exists := f.words[token]; exists {
+				word(f) // Execute Forth word
+			} else if number, err := strconv.Atoi(token); err == nil {
+				f.push(number) // Push number onto the stack
+			} else {
+				fmt.Println("Unknown word:", token)
+			}
+		}
+	}
+}
+
+// addNewWord adds a new user-defined word to the dictionary
+func (f *ForthInterpreter) addNewWord(name string, definition []string) {
+	f.words[name] = func(f *ForthInterpreter) {
+		for _, token := range definition {
+			if word, exists := f.words[token]; exists {
+				word(f) // Execute Forth word
+			} else if number, err := strconv.Atoi(token); err == nil {
+				f.push(number) // Push number onto the stack
+			} else {
+				fmt.Println("Unknown word in definition:", token)
+			}
 		}
 	}
 }
@@ -106,9 +147,9 @@ func (f *ForthInterpreter) top() int {
 func main() {
 	interpreter := NewForthInterpreter()
 
-	// Example Forth commands
+	// Example Forth commands with word definition
 	fmt.Println("Forth Interpreter Example:")
-	interpreter.Execute("3 4 + .")  // Outputs: 7
-	interpreter.Execute("10 2 / .") // Outputs: 5
-	interpreter.Execute("5 dup * .") // Outputs: 25
+	interpreter.Execute(": square dup * ;") // Define a new word 'square'
+	interpreter.Execute("5 square .")       // Outputs: 25
+	interpreter.Execute("3 4 + square .")   // Outputs: 49
 }
